@@ -2,22 +2,29 @@
 #include <SDL2/SDL_image.h>
 #include <time.h>
 #include <math.h>
+#include <stdio.h>
 
 #ifdef __linux__
 	#include <unistd.h>
 #endif
 
 #ifdef __MINGW32__
-	//for printf
-	#include <stdio.h>
 	// for getPathToExecutable
 	#include <libloaderapi.h>
 #endif
 
 #include "enchant-engine/configReader.c"
 #include "enchant-engine/enchant-engine.h"
+#include "enchant-engine/eeMath.h"
 #include "enchant-engine/input.h"
 #include "enchant-engine/physics.h"
+
+// These are mostly for VS code to not complain, as these are not part of the C standard but are included by gnu math.h anyways.
+#ifndef M_PI
+	#define M_PI atan(1)*4
+	#define M_PI_2 M_PI/2
+	#define M_PI_4 M_PI/4
+#endif
 
 #define SPRITE_ORIENTATIONS (72)
 #define MAX_FILE_PATH (1024)
@@ -61,13 +68,6 @@ void getConfig(char* pathToExecutable) {
 	}
 }
 
-float degsin(float deg) {return sin(deg*0.0174532925);}
-float degcos(float deg) {return cos(deg*0.0174532925);}
-float degtan(float deg) {return tan(deg*0.0174532925);}
-float degasin(float val) {return 57.2957795*asin(val);}
-float degacos(float val) {return 57.2957795*acos(val);}
-float degatan(float val) {return 57.2957795*atan(val);}
-
 void getPathToExecutable(char* buf, int bufLen)
 {
 	#ifdef __linux__
@@ -96,28 +96,7 @@ void getPathToExecutable(char* buf, int bufLen)
 	#endif
 }
 
-int rotToFrame(float rot) { return (int)(rot  / (360.0 / (float)SPRITE_ORIENTATIONS) + 0.5) % SPRITE_ORIENTATIONS; }
-
-Vector2 rotToVector2(float rot)
-{
-	int ySign = 1 - (rot > 90 || rot < 270)*2;
-
-	Vector2 result = {
-		degsin(rot),
-		degcos(rot)*ySign
-	};
-	return result;
-}
-
-Vector2 multiplyVector2(Vector2 vector, float multiplier)
-{
-	Vector2 result = {
-		vector.x * multiplier,
-		vector.y * multiplier
-	};
-
-	return result;
-}
+int rotToFrame(float rot) { return (int)(rot  / ((M_PI*2) / (float)SPRITE_ORIENTATIONS) + 0.5) % SPRITE_ORIENTATIONS; }
 
 SDL_Window *window;
 SDL_Renderer *renderer;
@@ -233,9 +212,9 @@ void update(int frame)
 	//Rotating monkey heads
 	for(int i = 0; i < 4; i++)
 	{
-		monkeyHeadPhysics[i].rotation = (monkeyHeadPhysics[i].rotation + 1);
-		if(monkeyHeadPhysics[i].rotation < 0) monkeyHeadPhysics[i].rotation += 360;
-		if(monkeyHeadPhysics[i].rotation > 360) monkeyHeadPhysics[i].rotation -= 360;
+		monkeyHeadPhysics[i].rotation = (monkeyHeadPhysics[i].rotation + (M_PI/180));
+		if(monkeyHeadPhysics[i].rotation < 0) monkeyHeadPhysics[i].rotation += M_PI*2;
+		if(monkeyHeadPhysics[i].rotation > M_PI*2) monkeyHeadPhysics[i].rotation -= M_PI*2;
 		rotFrame = rotToFrame(monkeyHeadPhysics[i].rotation);
 		animFrame = (frame+(30*i))%119-59;
 		if(animFrame < 0)
@@ -259,13 +238,13 @@ void update(int frame)
 	}
 
 	//TEST GameObject
-	testEntityPhysics.rotation += (-actionPressed(bindingLeft) + actionPressed(bindingRight)) * 6;
+	testEntityPhysics.rotation += (-actionPressed(bindingLeft) + actionPressed(bindingRight)) * (M_PI/30);
 	if(actionPressedThisFrame(bindingQuickTurn))
 	{
-		testEntityPhysics.rotation += 180;
+		testEntityPhysics.rotation += M_PI;
 	}
-	if(testEntityPhysics.rotation < 0) testEntityPhysics.rotation += 360;
-	if(testEntityPhysics.rotation > 360) testEntityPhysics.rotation -= 360;
+	if(testEntityPhysics.rotation < 0) testEntityPhysics.rotation += M_PI*2;
+	if(testEntityPhysics.rotation > M_PI*2) testEntityPhysics.rotation -= M_PI*2;
 	rotFrame = rotToFrame(testEntityPhysics.rotation);
 	/*
 	//This would cause the monkey head to float up and down.
@@ -280,7 +259,7 @@ void update(int frame)
 	*/
 	animFrame = 59;
 
-	testEntityPhysics.velocity = multiplyVector2(rotToVector2(testEntityPhysics.rotation), (-actionPressed(bindingBack)+actionPressed(bindingForward))*15);
+	testEntityPhysics.velocity = multiplyVector3(rotToVector3(testEntityPhysics.rotation), (-actionPressed(bindingBack)+actionPressed(bindingForward))*15);
 	
 	testEntityPhysics.position.x += testEntityPhysics.velocity.x;
 	testEntityPhysics.position.y += testEntityPhysics.velocity.y;
